@@ -5,28 +5,32 @@
      &   dnrm2 => dnrm2_omp,                                             &
      &   dcopy => dcopy_omp,                                             &
 !     &   dgemv => dgemv_omp,                                             &
+!     &   dgemm => dgemm_omp,
      &   daxpy => daxpy_omp
 
 #define dgemv dgemv_omp
+#define dgemm dgemm_omp
 #else
        use blas_mod
 #endif
 
        implicit none
-       character :: transA
-       integer, parameter :: n = 1000
+       integer, parameter :: n = 1024*2
        integer, parameter :: ncase = n
        real*8 :: x(n,ncase), y(n,ncase), z(n,ncase)
        real*8 :: xy(ncase)
-       real*8 :: ynorm(ncase)
+       real*8 :: ynorm(ncase), znorm(ncase)
        real*8 :: alpha, beta
        integer :: i,icase, inc1,inc2
-       integer :: mm,nn,ld1
+       integer :: istart,iend
+       integer :: mm,nn,kk,ld1,ld2,ld3
+       character :: transA, transB
+       integer, parameter :: nb = 64
 
        integer :: tstart,tend,count_rate
        real*8 :: elapsed_time
 
-!$omp target data map(from:x,y,z,xy,ynorm)
+!$omp target data map(from:x,y,z,xy,ynorm,znorm)
 
 !$omp  target teams
 !$omp  distribute parallel do simd collapse(2)
@@ -66,6 +70,31 @@
        enddo
 !$omp end target teams
 
+        transA = 'N'
+        transB = 'N'
+        ld1 = size(x,1)
+        ld2 = size(y,1)
+        ld3 = size(z,1)
+!$omp target teams
+!$omp distribute private(istart,iend,mm,nn,kk)
+      do istart=1,ncase,nb
+        iend = min(ncase,istart+nb-1)
+        mm = size(z,1)
+        nn = iend-istart+1
+        kk = size(x,2)
+        call  dgemm(transA,transB,mm,nn,kk,                              &
+     &          alpha, x,ld1, y,ld2,                                     &
+     &          beta,  z(:,istart),ld3)
+       enddo
+!$omp end target teams
+
+!$omp target teams
+!$omp distribute 
+       do icase=1,ncase
+        znorm(icase) = dnrm2( size(z,1), z(:,icase), inc1)
+       enddo
+!$omp end target teams
+
 !$omp taskwait
 !$omp barrier
        call system_clock(tend,count_rate)
@@ -77,6 +106,7 @@
        print*,'sum(y) ', sum(y)
        print*,'sum(xy) ', sum(xy)
        print*,'sum(ynorm) ',sum(ynorm)
+       print*,'sum(znorm) ',sum(znorm)
 
        stop
        end program tblas_mod
