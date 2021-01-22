@@ -9,14 +9,16 @@
       integer :: i,j,ix,iy, nrowx,nrowy
       real*8 :: aij, Ax
 
-      is_trans = (trans.eq.'T').or.(trans.eq.'t')
+      is_trans = (trans.eq.'T').or.(trans.eq.'t').or.                    &
+     &           (trans.eq.'C').or.(trans.eq.'c')
 
       
       nrowy = merge( n, m, is_trans )
       nrowx = merge( m, n, is_trans )
 
+!$omp parallel do simd private(i,iy)
       do i=1,nrowy
-        iy = 1 + (i-1)*nrowy
+        iy = 1 + (i-1)*incy
         if (beta.eq.0) then
                 y(iy) = 0
         else
@@ -30,13 +32,15 @@
 !      -------------------------------------
 !$omp    parallel do simd private(i,j,ix,iy,Ax,aij)
           do i=1,nrowy
+
            Ax = 0
            do j=1,nrowx
-             ix = 1 + (j-1)*incx
              aij  = merge( A(j,i), A(i,j), is_trans )
+             ix = 1 + (j-1)*incx
              Ax = Ax + aij*x(ix)
            enddo
-           iy = 1 + (j-1)*incy
+
+           iy = 1 + (i-1)*incy
            y(iy) = y(iy) + alpha*Ax
           enddo
 
