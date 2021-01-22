@@ -49,9 +49,6 @@
        beta = 1.2
        transA = 'N'
 
-!$omp taskwait
-!$omp barrier
-       call system_clock(tstart,count_rate)
 
 !$omp target teams
 !$omp distribute  private(mm,nn,ld1)
@@ -75,6 +72,10 @@
         ld1 = size(x,1)
         ld2 = size(y,1)
         ld3 = size(z,1)
+!$omp taskwait
+!$omp barrier
+       call system_clock(tstart,count_rate)
+
 !$omp target teams
 !$omp distribute private(istart,iend,mm,nn,kk)
       do istart=1,ncase,nb
@@ -88,6 +89,12 @@
        enddo
 !$omp end target teams
 
+!$omp taskwait
+!$omp barrier
+       call system_clock(tend,count_rate)
+       elapsed_time = dble(tend-tstart)/dble(count_rate)
+       print*,'time for dgemm is ', elapsed_time
+
 !$omp target teams
 !$omp distribute 
        do icase=1,ncase
@@ -95,11 +102,6 @@
        enddo
 !$omp end target teams
 
-!$omp taskwait
-!$omp barrier
-       call system_clock(tend,count_rate)
-       elapsed_time = dble(tend-tstart)/dble(count_rate)
-       print*,'time is ', elapsed_time
 
 !$omp end target data 
        print*,'sum(x) ', sum(x)
